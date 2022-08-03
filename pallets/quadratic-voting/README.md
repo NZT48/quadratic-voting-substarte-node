@@ -49,6 +49,6 @@ cargo test -p pallet-quadratic-voting --features runtime-benchmarks
 
 ## Todo
 
-[] Fix and implement benchmarking for missing functions
-[] Implement fees for proposal creation to prevent spamming
-[] Expand to have a more complex proposal system where users can vote on multiple things at once, and have to consider how they want to distribute their votes across them.
+- [ ] Fix and implement benchmarking for missing functions
+- [ ] Implement fees for proposal creation to prevent spamming
+- [ ] Expand to have a more complex proposal system where users can vote on multiple things at once, and have to consider how they want to distribute their votes across them.
