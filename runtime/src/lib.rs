@@ -42,9 +42,10 @@ use pallet_transaction_payment::CurrencyAdapter;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill};
+pub use frame_system::EnsureRoot;
 
-/// Import the template pallet.
-pub use pallet_template;
+/// Import the quadratic voting pallet.
+pub use pallet_quadratic_voting::IdentityVerifier;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -93,8 +94,8 @@ pub mod opaque {
 //   https://docs.substrate.io/v3/runtime/upgrades#runtime-versioning
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("node-template"),
-	impl_name: create_runtime_str!("node-template"),
+	spec_name: create_runtime_str!("quadratic-voting-node"),
+	impl_name: create_runtime_str!("quadratic-voting-node"),
 	authoring_version: 1,
 	// The version of the runtime specification. A full node will not attempt to use its native
 	//   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
@@ -124,6 +125,10 @@ pub const SLOT_DURATION: u64 = MILLISECS_PER_BLOCK;
 pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
 pub const HOURS: BlockNumber = MINUTES * 60;
 pub const DAYS: BlockNumber = HOURS * 24;
+
+// OTP = the base number of indivisible units for balances
+pub const DOLLARS: Balance = 1_000_000_000_000;
+pub const CENTS: Balance = 1_000_000_000;
 
 /// The version information used to identify this runtime when compiled natively.
 #[cfg(feature = "std")]
@@ -262,9 +267,48 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
-/// Configure the pallet-template in pallets/template.
-impl pallet_template::Config for Runtime {
+parameter_types! {
+	pub const BasicDeposit: Balance = 10 * DOLLARS;       // 258 bytes on-chain
+	pub const FieldDeposit: Balance = 250 * CENTS;        // 66 bytes on-chain
+	pub const SubAccountDeposit: Balance = 2 * DOLLARS;   // 53 bytes on-chain
+	pub const MaxSubAccounts: u32 = 100;
+	pub const MaxAdditionalFields: u32 = 100;
+	pub const MaxRegistrars: u32 = 20;
+}
+
+impl pallet_identity::Config for Runtime {
 	type Event = Event;
+	type Currency = Balances;
+	type BasicDeposit = BasicDeposit;
+	type FieldDeposit = FieldDeposit;
+	type SubAccountDeposit = SubAccountDeposit;
+	type MaxSubAccounts = MaxSubAccounts;
+	type MaxAdditionalFields = MaxAdditionalFields;
+	type MaxRegistrars = MaxRegistrars;
+	type Slashed = ();
+	type ForceOrigin = EnsureRoot<AccountId>;
+	type RegistrarOrigin = EnsureRoot<AccountId>;
+	type WeightInfo = pallet_identity::weights::SubstrateWeight<Runtime>;
+}
+
+pub struct VotingIdentityVerifier;
+impl IdentityVerifier<AccountId> for VotingIdentityVerifier {
+	fn has_identity(who: &AccountId, fields: u64) -> bool {
+		Identity::has_identity(who, fields)
+	}
+}
+
+parameter_types! {
+	pub const VotingPeriod: BlockNumber = 1 * MINUTES;       // 258 bytes on-chain
+}
+
+/// Configure the pallet-quadratic-voting in pallets/quadratic-voting.
+impl pallet_quadratic_voting::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type IdentityVerifier = VotingIdentityVerifier;
+	/// Voting period for proposal
+	type VotingPeriod = VotingPeriod;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
@@ -282,8 +326,10 @@ construct_runtime!(
 		Balances: pallet_balances,
 		TransactionPayment: pallet_transaction_payment,
 		Sudo: pallet_sudo,
-		// Include the custom logic from the pallet-template in the runtime.
-		TemplateModule: pallet_template,
+		// Pallets added to substrate node template
+		Identity: pallet_identity,
+		QuadraticVoting: pallet_quadratic_voting,
+
 	}
 );
 
@@ -328,7 +374,8 @@ mod benches {
 		[frame_system, SystemBench::<Runtime>]
 		[pallet_balances, Balances]
 		[pallet_timestamp, Timestamp]
-		[pallet_template, TemplateModule]
+		[pallet_quadratic_voting, QuadraticVoting]
+		[pallet_identity, Identity]
 	);
 }
 
